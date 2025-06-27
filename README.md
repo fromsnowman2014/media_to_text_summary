@@ -22,8 +22,8 @@ A powerful command-line tool for transcribing, translating, summarizing, and sub
 
 1. Clone the repository:
 ```bash
-git clone <repository-url>
-cd extract_transcript
+git clone https://github.com/fromsnowman2014/media_to_text_summary.git
+cd media_to_text_summary
 ```
 
 2. Install dependencies:
@@ -35,8 +35,18 @@ pip install -r requirements.txt
 
 ### Basic Usage
 
+Due to OpenMP conflicts between PyTorch and faster-whisper, you should use one of the following methods to run the application:
+
+#### Method 1: Using the provided wrapper script
+
 ```bash
-python -m extract_transcript.cli input_file.mp3
+./run.sh input_file.mp3
+```
+
+#### Method 2: Setting the environment variable directly
+
+```bash
+KMP_DUPLICATE_LIB_OK=TRUE python -m extract_transcript.cli input_file.mp3
 ```
 
 This will transcribe the audio file and save the result to the `output` directory.
@@ -44,7 +54,19 @@ This will transcribe the audio file and save the result to the `output` director
 ### Advanced Options
 
 ```bash
-python -m extract_transcript.cli input_file.mp3 \
+# Using the wrapper script
+./run.sh input_file.mp3 \
+    --model medium \
+    --language en \
+    --output_dir my_output \
+    --translate_to ko \
+    --summarize \
+    --summary_length 200 \
+    --generate_subtitles \
+    --subtitle_format both
+
+# Or with the environment variable
+KMP_DUPLICATE_LIB_OK=TRUE python -m extract_transcript.cli input_file.mp3 \
     --model medium \
     --language en \
     --output_dir my_output \
@@ -74,7 +96,11 @@ python -m extract_transcript.cli input_file.mp3 \
 Process all supported audio/video files in a directory:
 
 ```bash
-python -m extract_transcript.cli path/to/media/folder --generate_subtitles
+# Using the wrapper script
+./run.sh path/to/media/folder --generate_subtitles
+
+# Or with the environment variable
+KMP_DUPLICATE_LIB_OK=TRUE python -m extract_transcript.cli path/to/media/folder --generate_subtitles
 ```
 
 ## Architecture
@@ -87,6 +113,8 @@ The codebase follows SOLID design principles with separate modules for each resp
 - **SubtitleGenerator**: Converts segments to SRT/VTT formats
 - **OutputWriter**: Manages file system operations for output
 - **CLI**: Coordinates the workflow and user interaction
+
+All these modules are located in the `extract_transcript` package.
 
 ## Supported Formats
 
@@ -102,12 +130,17 @@ The codebase follows SOLID design principles with separate modules for each resp
 
 ## Development
 
+### Known Issues
+
+#### OpenMP Conflicts
+The application uses both PyTorch and faster-whisper, which can cause OpenMP runtime conflicts. This is resolved by setting the `KMP_DUPLICATE_LIB_OK=TRUE` environment variable as shown in the usage examples.
+
 ### Testing
 
 Run the test suite:
 
 ```bash
-pytest -xvs
+KMP_DUPLICATE_LIB_OK=TRUE pytest -xvs
 ```
 
 ### Adding New Features
