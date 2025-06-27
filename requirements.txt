@@ -1,5 +1,7 @@
 faster-whisper
 pytest
 transformers
-torch
+torch==2.2.2
+pdfplumber
 sentencepiece
+safetensors

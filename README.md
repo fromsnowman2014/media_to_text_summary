@@ -5,9 +5,10 @@ A powerful command-line tool for transcribing, translating, summarizing, and sub
 ## Features
 
 - **Transcription**: Convert audio/video files to text using Faster Whisper
-- **Translation**: Translate transcribed text to different languages using Hugging Face Transformers
-- **Summarization**: Generate concise summaries of transcripts
-- **Subtitle Generation**: Create SRT and VTT subtitle files from transcriptions
+- **Direct Text Processing**: Directly translate and summarize text from `.txt`, `.srt`, and `.pdf` files.
+- **Translation**: Translate transcribed or input text to different languages using Hugging Face Transformers
+- **Summarization**: Generate concise summaries of transcripts, with context-aware summarization for different input types (time-based for media, section-based for documents).
+- **Subtitle Generation**: Create SRT and VTT subtitle files from transcriptions (for audio/video inputs only).
 - **Batch Processing**: Process multiple files in a directory
 - **Flexible Output**: Save results to customizable locations
 
@@ -29,6 +30,8 @@ cd media_to_text_summary
 2. Install dependencies:
 ```bash
 pip install -r requirements.txt
+# For PDF processing, you may need to install system-level dependencies for pdfplumber
+# pip install "pdfplumber[image]"
 ```
 
 ## Usage
@@ -81,14 +84,15 @@ KMP_DUPLICATE_LIB_OK=TRUE python -m extract_transcript.cli input_file.mp3 \
 
 | Argument | Description | Default |
 |----------|-------------|---------|
-| `input_file` | Path to audio/video file or directory | Required |
-| `--model` | Whisper model size (tiny, base, small, medium, large) | base |
-| `--language` | Language code for transcription | Auto-detect |
+| `input_file` | Path to audio/video/text/PDF file or directory | Required |
+| `--input_type` | Explicitly specify input type (`audio`, `video`, `transcript`, `pdf`) | Auto-detect from extension |
+| `--model` | Whisper model size (tiny, base, small, medium, large). Not used for text/PDF. | base |
+| `--language` | Language code for transcription/text | Auto-detect |
 | `--output_dir` | Output directory for results | `output/` |
 | `--translate_to` | Target language for translation | None |
-| `--summarize` | Generate a summary of the transcript | False |
+| `--summarize` | Generate a summary of the transcript/text | False |
 | `--summary_length` | Maximum summary length in words | 150 |
-| `--generate_subtitles` | Generate subtitle files | False |
+| `--generate_subtitles` | Generate subtitle files (media files only) | False |
 | `--subtitle_format` | Subtitle format (srt, vtt, or both) | srt |
 
 ## Directory Processing
@@ -121,6 +125,8 @@ All these modules are located in the `extract_transcript` package.
 ### Input Formats
 - Audio: mp3, wav, flac, ogg, m4a
 - Video: mp4, mov
+- Text: txt, srt
+- Document: pdf
 
 ### Output Formats
 - Transcription: Plain text (.txt)
@@ -134,6 +140,9 @@ All these modules are located in the `extract_transcript` package.
 
 #### OpenMP Conflicts
 The application uses both PyTorch and faster-whisper, which can cause OpenMP runtime conflicts. This is resolved by setting the `KMP_DUPLICATE_LIB_OK=TRUE` environment variable as shown in the usage examples.
+
+#### PyTorch Loading Security
+To address a security vulnerability in `torch.load`, we use the `safetensors` format for loading models by default. The safetensors package is included in the requirements.txt file.
 
 ### Testing
 

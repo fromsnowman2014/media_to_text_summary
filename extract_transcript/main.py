@@ -49,7 +49,13 @@ def translate_text(text: str, src_lang: str, target_lang: str, model_name: str =
 
     try:
         tokenizer = AutoTokenizer.from_pretrained(model_name)
-        model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
+        try:
+            # Try loading with safetensors first
+            model = AutoModelForSeq2SeqLM.from_pretrained(model_name, prefer_safetensors=True)
+        except TypeError as e:
+            # If model doesn't support prefer_safetensors, load without it
+            logging.warning(f"Model doesn't support safetensors, falling back to standard loading: {e}")
+            model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
         
         src_code = NLLB_LANGUAGE_CODES[src_lang]
         target_code = NLLB_LANGUAGE_CODES[target_lang]

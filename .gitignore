@@ -26,3 +26,6 @@ ENV/
 .vscode/
 *.swp
 *.swo
+
+# macOS specific files
+.DS_Store
