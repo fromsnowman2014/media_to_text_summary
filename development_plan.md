@@ -20,6 +20,8 @@ CLI 버전은 전체 애플리케이션의 백엔드 로직과 핵심 기능을 
     - 메인 스크립트 파일 생성: `media_converter/main.py`
     - **핵심 의존성 파일 `requirements_core.txt` 생성:**
         - `faster-whisper`: 핵심 음성 인식 라이브러리
+        - `pdfplumber`: PDF 텍스트 추출
+        - `python-docx`: DOCX 텍스트 추출
         - `pytest`: 테스트 프레임워크
     - Python 가상 환경 초기화 및 의존성 설치
 - **Unit Test:**
@@ -36,7 +38,7 @@ CLI 버전은 전체 애플리케이션의 백엔드 로직과 핵심 기능을 
 - **Action:**
     - Python의 `argparse`를 사용하여 필수 CLI 인자 및 옵션 구현
         - 필수 인자: `input_file`
-        - 선택 옵션: `--model`, `--language`, `--output_dir`
+        - 선택 옵션: `--input_type`, `--model`, `--language`, `--output_dir`
     - 처리 결과를 입력 파일명 기반의 `.txt` 파일로 지정된 경로에 저장하는 로직 구현
 - **Unit Test:**
     - CLI 호출을 시뮬레이션하여 올바른 함수가 정확한 인자와 함께 호출되는지 검증 (`test_cli.py`)
@@ -56,12 +58,15 @@ CLI 버전은 전체 애플리케이션의 백엔드 로직과 핵심 기능을 
 - **Unit Test:**
     - 번역 기능 호출 시, 외부 라이브러리를 모킹(mocking)하여 올바른 파라미터로 함수가 호출되는지 검증
 
-#### Step 5: 시간대별 요약 기능 추가
+#### Step 5: 텍스트/PDF 직접 처리 및 요약 기능 확장
 - **Action:**
     - `--summarize` CLI 옵션 추가
-    - `transcribe_audio` 함수에서 반환된 타임스탬프(`segments`) 정보를 활용
-    - `transformers`의 요약 모델(예: `facebook/bart-large-cnn`)을 사용하여 시간대별로 텍스트를 묶고 요약하는 `summarize_transcript(...)` 함수 구현
+    - 입력 파일 유형에 따라 처리 로직 분기:
+        - **오디오/비디오:** `transcribe_audio` 함수에서 반환된 타임스탬프(`segments`) 정보를 활용하여 시간대별 요약 기능 구현.
+        - **텍스트/PDF:** 음성인식 단계를 건너뛰고, 파일에서 직접 텍스트를 읽어와 섹션별/문단별 요약을 수행하는 `summarize_text(...)` 함수 구현.
+    - `transformers`의 요약 모델(예: `facebook/bart-large-cnn`)을 사용하여 요약 기능 구현
 - **Unit Test:**
+    - 샘플 텍스트 및 PDF 파일로 요약 기능 검증
     - 요약 기능 호출 시, 외부 라이브러리를 모킹하여 요약 파일이 정상적으로 생성되는지 검증
 
 #### Step 6: 자막(SRT) 생성 및 비디오 지원 추가
@@ -109,6 +114,7 @@ CLI의 모든 기능을 감싸는 직관적인 macOS GUI를 개발합니다.
 #### Step 10: 고급 기능 UI 연동 및 비동기 처리
 - **Action:**
     - '번역', '요약', '자막' 등 선택적 기능들을 위한 체크박스(CheckBox) UI 추가 및 로직 연동
+    - 입력 파일 유형에 따라 UI 옵션 활성화/비활성화 로직 추가 (예: 텍스트/PDF 파일 선택 시 '자막 생성' 체크박스 비활성화)
     - **`QThread`**를 사용하여 파일 처리 로직을 백그라운드 스레드에서 실행. 이를 통해 처리 중 UI가 멈추는 현상(freezing)을 방지 (비동기 처리)
 
 #### Step 11: 사용자 경험(UX) 개선

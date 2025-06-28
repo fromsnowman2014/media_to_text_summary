@@ -11,6 +11,7 @@ from .translator import Translator
 from .summarizer import Summarizer
 from .subtitle_generator import SubtitleGenerator, SubtitleFormat
 from .output_writer import OutputWriter
+from .text_extractor import TextExtractor
 
 def configure_logging():
     """Configure logging format and level."""
@@ -28,13 +29,14 @@ def process_file(
     translator: Translator = None,
     summarizer: Summarizer = None,
     subtitle_generator: SubtitleGenerator = None,
-    output_writer: OutputWriter = None
+    output_writer: OutputWriter = None,
+    text_extractor: TextExtractor = None
 ):
     """
-    Process a single audio/video file.
+    Process a single file (audio, video, text, or PDF).
     
     Args:
-        file_path: Path to the audio/video file
+        file_path: Path to the input file
         output_dir: Directory where output files will be saved
         args: Command-line arguments
         transcriber: Transcriber instance
@@ -42,6 +44,7 @@ def process_file(
         summarizer: Summarizer instance (optional)
         subtitle_generator: SubtitleGenerator instance (optional)
         output_writer: OutputWriter instance (optional)
+        text_extractor: TextExtractor instance (optional)
     
     Returns:
         True if processing was successful, False otherwise
@@ -51,11 +54,46 @@ def process_file(
     else:
         output_writer.set_output_dir(output_dir)
         
-    # Transcribe the file
-    full_text, segments, detected_lang = transcriber.transcribe(file_path, args.language)
-    if not full_text:
-        logging.error(f"Failed to transcribe {file_path}")
-        return False
+    # Determine input type by extension or explicit argument
+    input_type = args.input_type
+    if not input_type:
+        # Auto-detect based on file extension
+        file_ext = file_path.suffix.lower()
+        if file_ext in ['.mp3', '.wav', '.m4a', '.mp4', '.mov', '.flac', '.ogg']:
+            input_type = 'audio'
+        elif file_ext in ['.txt', '.srt']:
+            input_type = 'text'
+        elif file_ext in ['.pdf']:
+            input_type = 'pdf'
+        else:
+            logging.warning(f"Unrecognized file extension: {file_ext}. Attempting audio processing.")
+            input_type = 'audio'
+    
+    full_text = None
+    segments = None
+    detected_lang = args.language
+    
+    if input_type in ['audio', 'video']:
+        # Process as audio/video through transcription
+        full_text, segments, detected_lang = transcriber.transcribe(file_path, args.language)
+        if not full_text:
+            logging.error(f"Failed to transcribe {file_path}")
+            return False
+    elif input_type in ['text', 'pdf']:
+        # Direct document text extraction
+        if text_extractor is None:
+            text_extractor = TextExtractor()
+            
+        try:
+            full_text = text_extractor.extract(file_path)
+            if not detected_lang:
+                detected_lang = 'en'  # Default language for text files
+            
+            # No segments for text files
+            segments = None
+        except Exception as e:
+            logging.error(f"Failed to extract text from {file_path}: {str(e)}")
+            return False
     
     # Save the transcription
     output_writer.save(file_path.name, full_text, "_transcription.txt")
@@ -74,8 +112,8 @@ def process_file(
         if summary_text:
             output_writer.save(file_path.name, summary_text, "_summary.txt")
     
-    # Generate subtitles if requested
-    if args.generate_subtitles and subtitle_generator and segments:
+    # Generate subtitles if requested (only for audio/video with segments)
+    if args.generate_subtitles and subtitle_generator and segments and input_type in ['audio', 'video']:
         logging.info(f"Generating subtitles in {args.subtitle_format} format...")
         if args.subtitle_format == "srt" or args.subtitle_format == "both":
             srt_content = subtitle_generator.generate(segments, SubtitleFormat.SRT)
@@ -84,6 +122,8 @@ def process_file(
         if args.subtitle_format == "vtt" or args.subtitle_format == "both":
             vtt_content = subtitle_generator.generate(segments, SubtitleFormat.VTT)
             output_writer.save(file_path.name, vtt_content, ".vtt")
+    elif args.generate_subtitles and input_type in ['text', 'pdf']:
+        logging.info("Subtitle generation skipped for document input.")
     
     return True
 
@@ -92,8 +132,10 @@ def main():
     configure_logging()
     
     # Set up argument parser
-    parser = argparse.ArgumentParser(description="Transcribe and process audio/video files.")
-    parser.add_argument("input_file", type=str, help="Path to the audio/video file or directory.")
+    parser = argparse.ArgumentParser(description="Transcribe and process media and text files.")
+    parser.add_argument("input_file", type=str, help="Path to the input file or directory.")
+    parser.add_argument("--input_type", type=str, choices=['audio', 'video', 'text', 'pdf'], 
+                      help="Type of input file (auto-detected if not specified).")
     parser.add_argument("--model", type=str, default="base", help="Whisper model size.")
     parser.add_argument("--language", type=str, default=None, help="Language code for transcription.")
     parser.add_argument("--output_dir", type=str, default=None, help="Output directory.")
@@ -133,6 +175,8 @@ def main():
     subtitle_generator = None
     if args.generate_subtitles:
         subtitle_generator = SubtitleGenerator()
+        
+    text_extractor = TextExtractor()
     
     # Process files
     if input_path.is_dir():
@@ -140,7 +184,12 @@ def main():
         success_count = 0
         total_files = 0
         
-        for ext in ["*.mp3", "*.mp4", "*.wav", "*.m4a", "*.mov", "*.flac", "*.ogg"]:
+        # Process all supported files in the directory
+        media_extensions = ["*.mp3", "*.mp4", "*.wav", "*.m4a", "*.mov", "*.flac", "*.ogg"]
+        text_extensions = ["*.txt", "*.srt", "*.pdf"]
+        all_extensions = media_extensions + text_extensions
+        
+        for ext in all_extensions:
             for file_path in input_path.glob(ext):
                 total_files += 1
                 file_output_dir = output_dir / file_path.stem
@@ -152,7 +201,8 @@ def main():
                     translator, 
                     summarizer, 
                     subtitle_generator,
-                    output_writer
+                    output_writer,
+                    text_extractor
                 ):
                     success_count += 1
         
@@ -173,7 +223,8 @@ def main():
                 translator, 
                 summarizer, 
                 subtitle_generator,
-                output_writer
+                output_writer,
+                text_extractor
             ):
                 logging.info("Processing completed successfully.")
             else:
