@@ -100,18 +100,69 @@ def process_file(
     
     # Translate if requested
     if args.translate_to and translator:
-        logging.info(f"Translating from {detected_lang} to {args.translate_to}...")
-        translated_text = translator.translate(full_text, detected_lang, args.translate_to)
-        if translated_text:
-            output_writer.save(file_path.name, translated_text, f"_translation_{args.translate_to}.txt")
+        try:
+            logging.info(f"Translating from {detected_lang} to {args.translate_to}...")
+            translated_text = translator.translate(full_text, detected_lang, args.translate_to)
+            if translated_text:
+                output_writer.save(file_path.name, translated_text, f"_translation_{args.translate_to}.txt")
+            else:
+                logging.error("Translation failed or produced empty results.")
+                translated_text = None  # Ensure this is explicitly None if translation failed
+        except Exception as e:
+            logging.error(f"Translation process failed with error: {e}")
+            translated_text = None  # Ensure this is explicitly None if translation failed
     
     # Summarize if requested
     if args.summarize and summarizer:
-        logging.info("Generating summary of transcription...")
-        summary_text = summarizer.summarize(full_text, max_length=args.summary_length)
-        if summary_text:
-            output_writer.save(file_path.name, summary_text, "_summary.txt")
-    
+        try:
+            logging.info("Generating summary of transcription...")
+            summary_text = summarizer.summarize(full_text, max_length=args.summary_length)
+            if summary_text:
+                output_writer.save(file_path.name, summary_text, "_summary.txt")
+                
+                # Also translate the summary if translation was requested
+                if args.translate_to and translator and translated_text:  # Only if text was already translated
+                    try:
+                        logging.info(f"Translating summary to {args.translate_to}...")
+                        
+                        # Force memory cleanup before summary translation
+                        if hasattr(translator, '_cleanup_memory'):
+                            logging.debug("Performing extra memory cleanup before summary translation")
+                            translator._cleanup_memory()
+                            
+                        # Limit summary size to prevent memory issues
+                        if len(summary_text) > 500:
+                            logging.warning(f"Summary too large ({len(summary_text)} chars), truncating to 500 chars")
+                            summary_to_translate = summary_text[:500] + "..."
+                        else:
+                            summary_to_translate = summary_text
+                            
+                        # Use a separate try-except for the actual translation call
+                        try:
+                            translated_summary = translator.translate(summary_to_translate, detected_lang, args.translate_to)
+                            if translated_summary:
+                                output_writer.save(file_path.name, translated_summary, f"_summary_{args.translate_to}.txt")
+                            else:
+                                logging.error("Summary translation failed or produced empty results.")
+                                # Create a fallback message so the process can continue
+                                output_writer.save(file_path.name, 
+                                                 "[Summary translation failed - see log for details]", 
+                                                 f"_summary_{args.translate_to}.txt")
+                        except Exception as trans_err:
+                            logging.error(f"Error during summary translation: {trans_err}")
+                            # Create fallback output to prevent process failure
+                            output_writer.save(file_path.name, 
+                                             f"[Summary translation error: {str(trans_err)[:100]}...]", 
+                                             f"_summary_{args.translate_to}.txt")
+                    except Exception as e:
+                        logging.error(f"Failed to translate summary: {e}")
+                        # Continue execution despite summary translation failure
+            else:
+                logging.warning("Summary generation failed or produced empty results.")
+        except Exception as e:
+            logging.error(f"Failed to generate summary: {e}")
+            # Continue execution despite summary failure
+            
     # Generate subtitles if requested (only for audio/video with segments)
     if args.generate_subtitles and subtitle_generator and segments and input_type in ['audio', 'video']:
         logging.info(f"Generating subtitles in {args.subtitle_format} format...")
